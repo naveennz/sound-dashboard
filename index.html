@@ -18,8 +18,15 @@
         /* Responsive grid adapting to screen size and tile count automatically */
         #sound-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1rem;
+        }
+
+        @media (min-width: 768px) {
+            #sound-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 1.5rem;
+            }
         }
 
         /* Tile base styling */
@@ -65,14 +72,31 @@
             border: 2px solid rgba(255,255,255,0.3);
             border-radius: 50%;
         }
+
+        /* Custom Volume Slider Orientation */
+        .volume-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            background: #4b5563;
+            border-radius: 8px;
+            outline: none;
+        }
+        @media (min-width: 768px) {
+            .volume-slider {
+                -webkit-appearance: slider-vertical;
+                appearance: slider-vertical;
+                width: 12px;
+                background: transparent;
+            }
+        }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8 flex flex-col">
 
-    <div class="max-w-7xl mx-auto w-full flex-grow flex flex-row">
+    <div class="max-w-7xl mx-auto w-full flex-grow flex flex-col md:flex-row pb-24 md:pb-0">
         
         <!-- MAIN CONTENT AREA -->
-        <div class="flex-grow flex flex-col pr-4 md:pr-8">
+        <div class="flex-grow flex flex-col pr-0 md:pr-8">
             <!-- HEADER / PANIC BUTTON & UPLOAD -->
             <div class="flex flex-col md:flex-row gap-4 mb-8 items-center">
                 <button id="panic-btn" onclick="stopAllAudio()" class="flex-grow bg-red-700 hover:bg-red-600 text-white font-black text-2xl md:text-3xl py-4 rounded-xl border-2 border-red-900 shadow-[0_0_15px_rgba(220,38,38,0.3)] uppercase tracking-wider transition-transform">
@@ -90,24 +114,22 @@
             <div id="sound-grid" class="flex-grow content-start pb-10">
                 <!-- Empty state placeholder (hidden once items are added) -->
                 <div id="empty-state" class="col-span-full text-center text-gray-500 mt-20">
-                    <p class="text-2xl mb-2">No sound cues added.</p>
-                    <p>Click "Add Sound Cue" to upload audio files from your device.</p>
+                    <p class="text-xl md:text-2xl mb-2">No sound cues added.</p>
+                    <p class="text-sm md:text-base">Click "Add Sound Cue" to upload audio files from your device.</p>
                 </div>
             </div>
         </div>
 
-        <!-- RIGHT SIDEBAR (MASTER VOLUME) -->
-        <div class="w-16 md:w-24 flex-shrink-0 flex flex-col items-center justify-start border-l-2 border-gray-800 pl-4 md:pl-8 pb-10">
-            <div class="bg-gray-800/80 p-4 rounded-full border border-gray-700 shadow-inner flex flex-col items-center gap-6 h-[70vh] min-h-[300px]">
-                <span class="text-2xl" title="Master Volume">🔊</span>
-                <div class="flex-grow relative w-full flex justify-center py-2">
+        <!-- MASTER VOLUME (Right Sidebar on Desktop, Bottom Bar on Mobile) -->
+        <div class="fixed bottom-0 left-0 w-full md:relative md:w-16 lg:w-24 flex-shrink-0 flex md:flex-col items-center justify-center md:justify-start border-t-2 md:border-t-0 md:border-l-2 border-gray-800 p-4 md:p-0 md:pl-4 lg:pl-8 md:pb-10 bg-gray-900 md:bg-transparent z-40">
+            <div class="bg-gray-800/80 p-3 md:p-4 rounded-3xl md:rounded-full border border-gray-700 shadow-inner flex flex-row md:flex-col items-center gap-4 md:gap-6 w-full max-w-md md:w-auto h-auto md:h-[70vh] md:min-h-[300px]">
+                <span class="text-xl md:text-2xl" title="Master Volume">🔊</span>
+                <div class="flex-grow relative w-full h-8 md:h-full md:w-12 flex items-center md:justify-center py-0 md:py-2">
                     <input type="range" id="master-volume" min="0" max="1" step="0.01" value="1" 
-                           class="w-full h-full cursor-pointer accent-blue-500" 
-                           style="-webkit-appearance: slider-vertical; appearance: slider-vertical; width: 12px;"
-                           oninput="updateMasterVolume(this.value)"
-                           orient="vertical">
+                           class="w-full h-2 md:h-full cursor-pointer accent-blue-500 volume-slider" 
+                           oninput="updateMasterVolume(this.value)">
                 </div>
-                <span class="text-sm text-gray-400 font-bold">VOL</span>
+                <span class="text-xs md:text-sm text-gray-400 font-bold">VOL</span>
             </div>
         </div>
 
@@ -130,6 +152,11 @@
                     <span class="text-sm text-gray-500">Select tile background</span>
                 </div>
             </div>
+
+            <div class="mb-8">
+                <label class="block text-sm text-gray-400 mb-1">Keyboard Shortcut</label>
+                <input type="text" id="edit-shortcut-input" maxlength="1" class="w-20 text-center bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 shadow-inner uppercase font-bold text-xl" placeholder="e.g. A">
+            </div>
             
             <div class="flex justify-end gap-3">
                 <button onclick="closeEditModal()" class="px-5 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors font-semibold">Cancel</button>
@@ -145,6 +172,7 @@
         const audioElements = {};
         let masterVolume = 1.0;
         let draggedTile = null; // Track the currently dragged tile
+        let spacebarPausedIds = new Set(); // Track which audios were paused by spacebar
         
         // Array of default colors to assign to new tiles sequentially
         const defaultColors = ['#1f2937', '#7c2d12', '#064e3b', '#1e3a8a', '#4c1d95', '#831843'];
@@ -199,6 +227,56 @@
                 grid.insertBefore(draggedTile, insertAfter ? tile.nextSibling : tile);
             });
             
+            // --- Touch Drag and Drop Event Listeners (Mobile) ---
+            let touchTimer = null;
+            let isDraggingTouch = false;
+
+            tile.addEventListener('touchstart', (e) => {
+                if (['INPUT', 'BUTTON'].includes(e.target.tagName)) return;
+                
+                // Use a short delay to differentiate between a tap (play) and a long press (drag)
+                touchTimer = setTimeout(() => {
+                    isDraggingTouch = true;
+                    draggedTile = tile;
+                    tile.classList.add('dragging');
+                    document.body.style.overflow = 'hidden'; // Prevent scrolling while dragging
+                }, 300);
+            }, { passive: true });
+
+            tile.addEventListener('touchmove', (e) => {
+                if (!isDraggingTouch || draggedTile !== tile) {
+                    clearTimeout(touchTimer);
+                    return;
+                }
+                e.preventDefault(); // Stop mobile screen scrolling
+                
+                const touch = e.touches[0];
+                const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
+                
+                if (targetElement) {
+                    const dropTarget = targetElement.closest('.tile');
+                    if (dropTarget && dropTarget !== tile) {
+                        const grid = document.getElementById('sound-grid');
+                        const rect = dropTarget.getBoundingClientRect();
+                        const insertAfter = (touch.clientX - rect.left) / (rect.right - rect.left) > 0.5;
+                        grid.insertBefore(draggedTile, insertAfter ? dropTarget.nextSibling : dropTarget);
+                    }
+                }
+            }, { passive: false });
+
+            const endTouchDrag = () => {
+                clearTimeout(touchTimer);
+                if (isDraggingTouch) {
+                    tile.classList.remove('dragging');
+                    draggedTile = null;
+                    isDraggingTouch = false;
+                    document.body.style.overflow = ''; // Restore scrolling
+                }
+            };
+
+            tile.addEventListener('touchend', endTouchDrag);
+            tile.addEventListener('touchcancel', endTouchDrag);
+
             let pauseBtn; // Declare here so updateVisuals can access it to change the icon
 
             // Visual active state logic
@@ -223,6 +301,7 @@
 
             // Main tile acts as Play button (and restarts if already playing)
             tile.onclick = () => {
+                spacebarPausedIds.delete(cue.id); // Remove from spacebar pause group if manually interacted with
                 if (!audio.paused) {
                     audio.currentTime = 0; // Restart from beginning if clicked again
                 }
@@ -232,6 +311,13 @@
             // 3. Header Container (Title + Edit Button)
             const headerDiv = document.createElement('div');
             headerDiv.className = 'flex justify-between items-start gap-3 w-full';
+
+            // Shortcut Badge
+            const shortcutBadge = document.createElement('div');
+            shortcutBadge.className = `absolute -top-3 -right-3 bg-blue-600 border-2 border-gray-900 text-white font-bold rounded-full w-8 h-8 flex items-center justify-center shadow-lg transform transition-transform ${cue.shortcut ? '' : 'hidden'}`;
+            shortcutBadge.innerText = cue.shortcut ? cue.shortcut.toUpperCase() : '';
+            shortcutBadge.id = `shortcut-${cue.id}`;
+            tile.appendChild(shortcutBadge);
 
             // Read-only Title
             const titleSpan = document.createElement('span');
@@ -264,6 +350,7 @@
             pauseBtn.className = 'flex-1 bg-black/40 hover:bg-black/60 border border-white/10 text-white font-bold py-2 md:py-3 rounded-xl text-sm md:text-base backdrop-blur-sm transition-colors';
             pauseBtn.onclick = (e) => {
                 e.stopPropagation(); 
+                spacebarPausedIds.delete(cue.id); // clear spacebar state to prevent conflicts
                 if (audio.paused) {
                     audio.play().catch(e => console.error("Playback failed:", e));
                 } else {
@@ -277,6 +364,7 @@
             stopBtn.className = 'flex-1 bg-red-600/80 hover:bg-red-500 border border-red-400/30 text-white font-bold py-2 md:py-3 rounded-xl text-sm md:text-base transition-colors';
             stopBtn.onclick = (e) => {
                 e.stopPropagation(); 
+                spacebarPausedIds.delete(cue.id); // clear spacebar state to prevent conflicts
                 audio.pause();
                 audio.currentTime = 0;
             };
@@ -346,6 +434,7 @@
             
             document.getElementById('edit-name-input').value = defaultName;
             document.getElementById('edit-color-input').value = assignedColor;
+            document.getElementById('edit-shortcut-input').value = '';
             
             document.getElementById('edit-modal').classList.remove('hidden');
             
@@ -370,6 +459,7 @@
             // Populate current values
             document.getElementById('edit-name-input').value = cue.label;
             document.getElementById('edit-color-input').value = cue.color;
+            document.getElementById('edit-shortcut-input').value = cue.shortcut || '';
             
             // Show modal
             document.getElementById('edit-modal').classList.remove('hidden');
@@ -386,6 +476,7 @@
         function saveModal() {
             const newName = document.getElementById('edit-name-input').value;
             const newColor = document.getElementById('edit-color-input').value;
+            const newShortcut = document.getElementById('edit-shortcut-input').value.trim().charAt(0).toUpperCase();
 
             if (modalMode === 'add' && pendingAddData) {
                 const newCue = {
@@ -393,7 +484,8 @@
                     label: newName || 'Untitled',
                     url: pendingAddData.url,
                     color: newColor,
-                    volume: 1.0
+                    volume: 1.0,
+                    shortcut: newShortcut
                 };
                 soundCues.push(newCue);
                 createTile(newCue);
@@ -401,10 +493,21 @@
                 // Update data model
                 currentEditCue.label = newName;
                 currentEditCue.color = newColor;
+                currentEditCue.shortcut = newShortcut;
 
                 // Update Tile UI
                 currentEditTitleSpan.innerText = newName;
                 currentEditTile.style.backgroundColor = newColor;
+
+                const badge = document.getElementById(`shortcut-${currentEditCue.id}`);
+                if (badge) {
+                    badge.innerText = newShortcut;
+                    if (newShortcut) {
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
 
                 // Update glow color if it happens to be playing right now
                 const audio = audioElements[currentEditCue.id];
@@ -427,6 +530,7 @@
                 }
                 audio.currentTime = 0; 
             });
+            spacebarPausedIds.clear(); // Clear pause state when manually stopping all
         }
         
         /**
@@ -449,6 +553,55 @@
                 audio.volume = cue.volume * masterVolume;
             }
         }
+
+        // --- KEYBOARD SHORTCUTS ---
+        document.addEventListener('keydown', (e) => {
+            // Ignore keystrokes if the user is typing in an input field (like the edit modal)
+            if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+            // Global Spacebar: Pause All / Resume Paused
+            if (e.code === 'Space') {
+                e.preventDefault(); // Prevent page scroll down
+                
+                let anyPlaying = false;
+                Object.values(audioElements).forEach(audio => {
+                    if (!audio.paused) anyPlaying = true;
+                });
+
+                if (anyPlaying) {
+                    // Pause all currently playing audio
+                    spacebarPausedIds.clear();
+                    Object.keys(audioElements).forEach(id => {
+                        const audio = audioElements[id];
+                        if (!audio.paused) {
+                            audio.pause();
+                            spacebarPausedIds.add(id);
+                        }
+                    });
+                } else if (spacebarPausedIds.size > 0) {
+                    // Resume audio that was specifically paused by the spacebar
+                    spacebarPausedIds.forEach(id => {
+                        const audio = audioElements[id];
+                        if (audio && audio.paused) {
+                            audio.play().catch(err => console.error("Resume failed:", err));
+                        }
+                    });
+                    spacebarPausedIds.clear();
+                }
+                return;
+            }
+
+            // Custom Tile Shortcuts
+            const key = e.key.toLowerCase();
+            const cueToTrigger = soundCues.find(c => c.shortcut && c.shortcut.toLowerCase() === key);
+            
+            if (cueToTrigger) {
+                e.preventDefault();
+                const tile = document.getElementById(`tile-${cueToTrigger.id}`);
+                if (tile) tile.click(); // Simulate a click on the main tile
+            }
+        });
+
     </script>
 </body>
 </html>
